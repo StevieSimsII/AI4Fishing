@@ -1,0 +1,48 @@
+:root {
+  --background: #081322;
+  --background-soft: #102035;
+  --panel: rgba(11, 29, 50, 0.88);
+  --panel-border: rgba(120, 181, 255, 0.14);
+  --foreground: #f5fbff;
+  --muted: #a6bbd5;
+  --accent: #79d0ff;
+  --accent-strong: #2db0ff;
+  --excellent: #22c55e;
+  --good: #84cc16;
+  --fair: #f59e0b;
+  --poor: #ef4444;
+}
+
+html {
+  height: 100%;
+}
+
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+body {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  color: var(--foreground);
+  background:
+    radial-gradient(circle at top, rgba(33, 83, 135, 0.45), transparent 30%),
+    linear-gradient(180deg, #0b1930 0%, #081322 100%);
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}

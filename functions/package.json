@@ -1,0 +1,22 @@
+{
+  "name": "inshoreiq-functions",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Azure Functions API for the InshoreIQ POC",
+  "main": "dist/functions/src/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@azure/functions": "^4.16.1",
+    "pg": "^8.16.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.0",
+    "@types/pg": "^8.15.5",
+    "typescript": "^6.0.3"
+  }
+}

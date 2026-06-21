@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.next/
+.vercel/
+out/
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+functions/local.settings.json
+npm-debug.log*
+

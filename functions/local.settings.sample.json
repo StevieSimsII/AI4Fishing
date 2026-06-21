@@ -1,0 +1,17 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+    "WINDY_API_KEY": "REPLACE_WITH_YOUR_WINDY_API_KEY",
+    "NOAA_COOPS_BASE_URL": "https://api.tidesandcurrents.noaa.gov/api/prod/",
+    "NOAA_PRIMARY_STATION_ID": "8761724",
+    "CORS_ALLOWED_ORIGIN": "https://steviesimsii.github.io",
+    "POSTGRES_URL": "postgresql://username:password@hostname:5432/database",
+    "AZURE_OPENAI_ENDPOINT": "",
+    "AZURE_OPENAI_API_KEY": "",
+    "AZURE_OPENAI_DEPLOYMENT": "",
+    "AZURE_OPENAI_API_VERSION": "2024-10-21"
+  }
+}
+

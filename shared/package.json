@@ -1,0 +1,12 @@
+{
+  "name": "@inshoreiq/shared",
+  "version": "0.1.0",
+  "private": true,
+  "exports": {
+    "./domain": "./domain/index.ts",
+    "./domain/index": "./domain/index.ts",
+    "./scoring": "./scoring/index.ts",
+    "./scoring/index": "./scoring/index.ts"
+  }
+}
+

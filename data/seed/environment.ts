@@ -1,0 +1,76 @@
+import type { EnvironmentalSnapshot, ForecastWindowSeed } from "../../shared/domain";
+
+export const CURRENT_ENVIRONMENT: EnvironmentalSnapshot = {
+  area: "Delacroix Cluster",
+  observedAt: "2026-06-20T06:30:00-05:00",
+  label: "Tomorrow at 6:30 AM",
+  windDirection: "SE",
+  windSpeedMph: 11,
+  tideMovement: "incoming",
+  tideStage: "mid",
+  season: "summer",
+  timeOfDay: "sunrise",
+  waterTempF: 79,
+  recentWeather: "Stable weather after two calm days with light overnight cloud cover.",
+  moonPhase: "Waxing crescent",
+  solunarScore: 86,
+  cloudCoverPercent: 28,
+};
+
+export const HOURLY_FORECAST: ForecastWindowSeed[] = [
+  {
+    timeLabel: "4:30 AM",
+    timeOfDay: "pre-dawn",
+    tideMovement: "incoming",
+    tideStage: "mid",
+    solunarScore: 62,
+    windSpeedMph: 9,
+    notes: "Bait begins sliding onto shorelines ahead of sunrise.",
+  },
+  {
+    timeLabel: "6:30 AM",
+    timeOfDay: "sunrise",
+    tideMovement: "incoming",
+    tideStage: "mid",
+    solunarScore: 86,
+    windSpeedMph: 11,
+    notes: "Best overlap of moving water, low light, and feeding activity.",
+  },
+  {
+    timeLabel: "8:30 AM",
+    timeOfDay: "morning",
+    tideMovement: "incoming",
+    tideStage: "high",
+    solunarScore: 78,
+    windSpeedMph: 12,
+    notes: "Still productive, especially where current seams stay defined.",
+  },
+  {
+    timeLabel: "10:30 AM",
+    timeOfDay: "morning",
+    tideMovement: "slack",
+    tideStage: "high",
+    solunarScore: 54,
+    windSpeedMph: 13,
+    notes: "Slowdown period as current eases on open-water structure.",
+  },
+  {
+    timeLabel: "1:30 PM",
+    timeOfDay: "afternoon",
+    tideMovement: "outgoing",
+    tideStage: "mid",
+    solunarScore: 57,
+    windSpeedMph: 15,
+    notes: "Redfish drains improve as water starts leaving the marsh.",
+  },
+  {
+    timeLabel: "5:30 PM",
+    timeOfDay: "evening",
+    tideMovement: "outgoing",
+    tideStage: "low",
+    solunarScore: 71,
+    windSpeedMph: 10,
+    notes: "Late bite shifts shallower on grass edges and marsh exits.",
+  },
+];
+

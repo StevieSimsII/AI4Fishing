@@ -1,0 +1,17 @@
+{
+  "name": "ai4fishing",
+  "version": "0.1.0",
+  "private": true,
+  "description": "InshoreIQ proof-of-concept",
+  "scripts": {
+    "dev:web": "npm --prefix web run dev",
+    "build:web": "npm --prefix web run build",
+    "lint:web": "npm --prefix web run lint",
+    "build:functions": "npm --prefix functions run build",
+    "build": "npm run build:web && npm run build:functions",
+    "lint": "npm run lint:web"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
