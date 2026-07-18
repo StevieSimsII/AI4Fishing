@@ -22,7 +22,7 @@ export const PILOT_AREAS: PilotAreaConfig[] = [
     },
     windyModel: "gfs",
     noaaStation: {
-      id: "8761724",
+      id: "8761305",
       name: "Shell Beach, LA",
     },
     dataSources: [
@@ -36,7 +36,7 @@ export const PILOT_AREAS: PilotAreaConfig[] = [
         name: "NOAA CO-OPS Tides & Currents API",
         type: "tide",
         url: "https://api.tidesandcurrents.noaa.gov/api/prod/",
-        detail: "Primary tide prediction source using Shell Beach station 8761724.",
+        detail: "Primary tide source using Shell Beach station 8761305 water levels, with predictions when available.",
       },
       {
         name: "NOAA NBS / NCEI Bathymetry",

@@ -6,7 +6,7 @@
     "PORT": "7071",
     "WINDY_API_KEY": "",
     "NOAA_COOPS_BASE_URL": "https://api.tidesandcurrents.noaa.gov/api/prod/",
-    "NOAA_PRIMARY_STATION_ID": "8761724",
+    "NOAA_PRIMARY_STATION_ID": "8761305",
     "CORS_ALLOWED_ORIGIN": "*",
     "POSTGRES_URL": "",
     "AZURE_OPENAI_ENDPOINT": "",

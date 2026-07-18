@@ -254,43 +254,105 @@ function extractWindyHours(payload: WindyResponse): WeatherHour[] {
     .filter((hour) => !Number.isNaN(hour.tempF));
 }
 
-function buildNoaaUrl(stationId: string, beginDate: Date, endDate: Date): string {
+function formatNoaaDate(value: Date): string {
+  const year = value.getFullYear();
+  const month = `${value.getMonth() + 1}`.padStart(2, "0");
+  const day = `${value.getDate()}`.padStart(2, "0");
+  return `${year}${month}${day}`;
+}
+
+function buildNoaaUrl(
+  stationId: string,
+  product: "predictions" | "water_level",
+  beginDate: Date,
+  endDate: Date,
+): string {
   const baseUrl = process.env.NOAA_COOPS_BASE_URL || NOAA_DEFAULT_BASE_URL;
   const url = new URL("datagetter", baseUrl);
 
-  const formatDate = (value: Date) => {
-    const year = value.getFullYear();
-    const month = `${value.getMonth() + 1}`.padStart(2, "0");
-    const day = `${value.getDate()}`.padStart(2, "0");
-    return `${year}${month}${day}`;
-  };
-
-  url.searchParams.set("begin_date", formatDate(beginDate));
-  url.searchParams.set("end_date", formatDate(endDate));
+  url.searchParams.set("begin_date", formatNoaaDate(beginDate));
+  url.searchParams.set("end_date", formatNoaaDate(endDate));
   url.searchParams.set("station", stationId);
-  url.searchParams.set("product", "predictions");
+  url.searchParams.set("product", product);
   url.searchParams.set("datum", "MLLW");
-  url.searchParams.set("interval", "h");
   url.searchParams.set("units", "english");
-  url.searchParams.set("time_zone", "lst_ldt");
+  url.searchParams.set("time_zone", "gmt");
+  url.searchParams.set("application", "inshoreiq");
   url.searchParams.set("format", "json");
+
+  if (product === "predictions") {
+    url.searchParams.set("interval", "h");
+  }
+
   return url.toString();
 }
 
-function parseTidePredictions(payload: unknown): TidePrediction[] {
-  const predictions = Array.isArray((payload as { predictions?: unknown[] })?.predictions)
-    ? ((payload as { predictions: Array<{ t: string; v: string }> }).predictions ?? [])
+function readNoaaError(payload: unknown): string | undefined {
+  const message = (payload as { error?: { message?: string } })?.error?.message;
+  return message?.trim() || undefined;
+}
+
+function parseTideSeries(
+  payload: unknown,
+  seriesKey: "predictions" | "data",
+): TidePrediction[] {
+  const series = Array.isArray((payload as Record<string, unknown>)?.[seriesKey])
+    ? ((payload as Record<string, Array<{ t: string; v: string }>>)[seriesKey] ?? [])
     : [];
 
-  return predictions
-    .map((prediction) => ({
-      timestamp: new Date(prediction.t),
-      valueFeet: Number(prediction.v),
+  return series
+    .map((point) => ({
+      timestamp: new Date(`${point.t}Z`),
+      valueFeet: Number(point.v),
     }))
     .filter(
       (prediction) =>
         !Number.isNaN(prediction.timestamp.getTime()) && !Number.isNaN(prediction.valueFeet),
-    );
+    )
+    .sort((left, right) => left.timestamp.getTime() - right.timestamp.getTime());
+}
+
+function downsampleHourly(predictions: TidePrediction[]): TidePrediction[] {
+  const byHour = new Map<string, TidePrediction>();
+
+  for (const prediction of predictions) {
+    const hourKey = prediction.timestamp.toISOString().slice(0, 13);
+    if (!byHour.has(hourKey)) {
+      byHour.set(hourKey, prediction);
+    }
+  }
+
+  return Array.from(byHour.values()).sort(
+    (left, right) => left.timestamp.getTime() - right.timestamp.getTime(),
+  );
+}
+
+function extendTideSeriesForForecast(
+  predictions: TidePrediction[],
+  horizonHours: number,
+): TidePrediction[] {
+  if (predictions.length === 0) {
+    return predictions;
+  }
+
+  const hourly = downsampleHourly(predictions);
+  if (hourly.length < 3) {
+    return hourly;
+  }
+
+  const last = hourly[hourly.length - 1];
+  const cycle = hourly.slice(-Math.min(24, hourly.length));
+  const extended = [...hourly];
+
+  for (let hour = 1; hour <= horizonHours; hour += 1) {
+    const cyclePoint = cycle[(cycle.length - 1 + hour) % cycle.length];
+    extended.push({
+      timestamp: new Date(last.timestamp.getTime() + hour * 60 * 60 * 1000),
+      valueFeet: cyclePoint.valueFeet,
+    });
+  }
+
+  return extended;
 }
 
 function findClosestIndex<T>(items: T[], readTime: (item: T) => number, target: number): number {
@@ -415,16 +477,54 @@ async function fetchWindyWeather(area: ReturnType<typeof getPilotAreaConfig>): P
   return extractWindyHours((await response.json()) as WindyResponse);
 }
 
-async function fetchNoaaTides(area: ReturnType<typeof getPilotAreaConfig>): Promise<TidePrediction[]> {
-  const beginDate = new Date();
-  const endDate = new Date(beginDate.getTime() + 24 * 60 * 60 * 1000);
-  const response = await fetch(buildNoaaUrl(area.noaaStation.id, beginDate, endDate));
-
+async function fetchNoaaJson(url: string): Promise<unknown> {
+  const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`NOAA CO-OPS request failed with status ${response.status}.`);
   }
 
-  return parseTidePredictions(await response.json());
+  const payload = await response.json();
+  const errorMessage = readNoaaError(payload);
+  if (errorMessage) {
+    throw new Error(errorMessage);
+  }
+
+  return payload;
+}
+
+async function fetchNoaaTides(area: ReturnType<typeof getPilotAreaConfig>): Promise<TidePrediction[]> {
+  const stationId =
+    process.env.NOAA_PRIMARY_STATION_ID?.trim() || area.noaaStation.id;
+  const now = new Date();
+  const predictionBegin = now;
+  const predictionEnd = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const waterBegin = new Date(now.getTime() - 36 * 60 * 60 * 1000);
+  const waterEnd = now;
+
+  try {
+    const predictionPayload = await fetchNoaaJson(
+      buildNoaaUrl(stationId, "predictions", predictionBegin, predictionEnd),
+    );
+    const predictions = parseTideSeries(predictionPayload, "predictions");
+    if (predictions.length >= 3) {
+      return predictions;
+    }
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : "Unknown prediction error.";
+    console.warn(`[live-service] NOAA predictions unavailable, trying water levels: ${detail}`);
+  }
+
+  const waterPayload = await fetchNoaaJson(
+    buildNoaaUrl(stationId, "water_level", waterBegin, waterEnd),
+  );
+  const observed = parseTideSeries(waterPayload, "data");
+  const extended = extendTideSeriesForForecast(observed, 12);
+
+  if (extended.length < 3) {
+    throw new Error("NOAA water level response did not include enough tide samples.");
+  }
+
+  return extended;
 }
 
 function buildFallbackEnvironment(reason: string): EnvironmentalSnapshot {
