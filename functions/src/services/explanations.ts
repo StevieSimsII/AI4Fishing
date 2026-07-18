@@ -5,6 +5,7 @@ import type {
   Recommendation,
   RecommendationsResponse,
 } from "../../../shared/domain";
+import { readConfiguredEnv } from "./config";
 
 const DEFAULT_AZURE_OPENAI_API_VERSION = "2024-10-21";
 
@@ -35,20 +36,44 @@ function withTemplateExplanations(
 
 function azureOpenAiConfigured(): boolean {
   return Boolean(
-    process.env.AZURE_OPENAI_ENDPOINT &&
-      process.env.AZURE_OPENAI_API_KEY &&
-      process.env.AZURE_OPENAI_DEPLOYMENT,
+    readConfiguredEnv("AZURE_OPENAI_ENDPOINT") &&
+      readConfiguredEnv("AZURE_OPENAI_API_KEY") &&
+      readConfiguredEnv("AZURE_OPENAI_DEPLOYMENT"),
   );
+}
+
+function parseExplanationEntries(content: string): Array<{ key: string; explanation: string }> {
+  const parsed = JSON.parse(sanitizeText(content)) as
+    | Array<{ key: string; explanation: string }>
+    | {
+        explanations?: Array<{ key: string; explanation: string }>;
+        items?: Array<{ key: string; explanation: string }>;
+      };
+
+  if (Array.isArray(parsed)) {
+    return parsed;
+  }
+
+  if (Array.isArray(parsed.explanations)) {
+    return parsed.explanations;
+  }
+
+  if (Array.isArray(parsed.items)) {
+    return parsed.items;
+  }
+
+  return [];
 }
 
 async function generateAzureOpenAiExplanations(
   recommendations: Recommendation[],
   environment: EnvironmentalSnapshot,
 ): Promise<Map<string, string>> {
-  const endpoint = process.env.AZURE_OPENAI_ENDPOINT;
-  const apiKey = process.env.AZURE_OPENAI_API_KEY;
-  const deployment = process.env.AZURE_OPENAI_DEPLOYMENT;
-  const apiVersion = process.env.AZURE_OPENAI_API_VERSION || DEFAULT_AZURE_OPENAI_API_VERSION;
+  const endpoint = readConfiguredEnv("AZURE_OPENAI_ENDPOINT");
+  const apiKey = readConfiguredEnv("AZURE_OPENAI_API_KEY");
+  const deployment = readConfiguredEnv("AZURE_OPENAI_DEPLOYMENT");
+  const apiVersion =
+    readConfiguredEnv("AZURE_OPENAI_API_VERSION") || DEFAULT_AZURE_OPENAI_API_VERSION;
 
   if (!endpoint || !apiKey || !deployment) {
     throw new Error("Azure OpenAI explanation settings are incomplete.");
@@ -86,7 +111,7 @@ async function generateAzureOpenAiExplanations(
         },
         {
           role: "user",
-          content: `Rewrite these fishing spot explanations as a JSON array with { "key": string, "explanation": string }. Keep each explanation under 45 words and do not change the recommendation itself.\n${JSON.stringify(
+          content: `Rewrite these fishing spot explanations as JSON object {"explanations":[{"key":string,"explanation":string}]}. Keep each explanation under 45 words and do not change the recommendation itself.\n${JSON.stringify(
             promptPayload,
           )}`,
         },
@@ -110,11 +135,7 @@ async function generateAzureOpenAiExplanations(
     throw new Error("Azure OpenAI explanation response was empty.");
   }
 
-  const parsed = JSON.parse(sanitizeText(content)) as {
-    explanations?: Array<{ key: string; explanation: string }>;
-  };
-  const entries = Array.isArray(parsed.explanations) ? parsed.explanations : [];
-
+  const entries = parseExplanationEntries(content);
   return new Map(entries.map((entry) => [entry.key, entry.explanation]));
 }
 

@@ -4,12 +4,15 @@
   "private": true,
   "description": "InshoreIQ proof-of-concept",
   "scripts": {
+    "setup": "npm --prefix functions run setup:local && npm --prefix functions install && npm --prefix web install",
+    "dev:api": "npm --prefix functions run start",
     "dev:web": "npm --prefix web run dev",
     "build:web": "npm --prefix web run build",
     "lint:web": "npm --prefix web run lint",
     "build:functions": "npm --prefix functions run build",
     "build": "npm run build:web && npm run build:functions",
-    "lint": "npm run lint:web"
+    "lint": "npm run lint:web",
+    "smoke:api": "node -e \"fetch('http://localhost:7071/api/dashboard').then(async (r)=>{if(!r.ok) throw new Error('status '+r.status); const j=await r.json(); if(!j.recommendations?.recommendations?.length) throw new Error('missing recommendations'); console.log('OK', j.recommendations.recommendations[0].zoneName, j.recommendations.recommendations[0].score);}).catch((e)=>{console.error(e); process.exit(1);})\""
   },
   "keywords": [],
   "author": "",

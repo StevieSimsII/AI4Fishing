@@ -46,7 +46,17 @@ export default function DashboardClient() {
         }
       } catch (loadError) {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : "Unable to load dashboard.");
+          const message =
+            loadError instanceof Error ? loadError.message : "Unable to load dashboard.";
+          const looksLikeNetworkFailure =
+            message.toLowerCase().includes("failed to fetch") ||
+            message.toLowerCase().includes("networkerror") ||
+            message.toLowerCase().includes("fetch");
+          setError(
+            looksLikeNetworkFailure
+              ? `Unable to reach the API at ${apiUrl}. Start it with npm run dev:api from the repo root, then refresh.`
+              : message,
+          );
         }
       } finally {
         if (!cancelled) {

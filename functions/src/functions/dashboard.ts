@@ -1,30 +1,32 @@
-import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
-import { getDashboardSnapshotLive } from "../../../shared/scoring";
-import { enrichDashboardSnapshot } from "../services/explanations";
-import { jsonResponse, readSpecies } from "../services/http";
-import { recordTelemetry, telemetryInputFromDashboard } from "../services/telemetry";
+import { app, type HttpRequest, type HttpResponseInit, type InvocationContext } from "@azure/functions";
+import { handleDashboard, optionsResult } from "../services/api";
+
+function toAzureResponse(result: {
+  status: number;
+  body: unknown;
+  headers: Record<string, string>;
+}): HttpResponseInit {
+  return {
+    status: result.status,
+    jsonBody: result.body === null ? undefined : result.body,
+    headers: result.headers,
+  };
+}
 
 export async function dashboardHandler(
   request: HttpRequest,
   _context: InvocationContext,
 ): Promise<HttpResponseInit> {
-  const query = {
-    area: request.query.get("area") ?? undefined,
-    species: readSpecies(request),
-  };
-  const snapshot = await enrichDashboardSnapshot(await getDashboardSnapshotLive(query));
-  const telemetry = await recordTelemetry(telemetryInputFromDashboard(snapshot, query));
+  if (request.method === "OPTIONS") {
+    return toAzureResponse(optionsResult());
+  }
 
-  return jsonResponse(snapshot, {
-    "x-telemetry-id": telemetry.requestId,
-    "x-telemetry-storage": telemetry.storage,
-  });
+  return toAzureResponse(await handleDashboard(request.query));
 }
 
 app.http("dashboard", {
-  methods: ["GET"],
+  methods: ["GET", "OPTIONS"],
   authLevel: "anonymous",
   route: "dashboard",
   handler: dashboardHandler,
 });
-

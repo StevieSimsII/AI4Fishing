@@ -5,7 +5,11 @@
   "description": "Azure Functions API for the InshoreIQ POC",
   "main": "dist/functions/src/index.js",
   "scripts": {
-    "build": "tsc -p tsconfig.json"
+    "build": "tsc -p tsconfig.json",
+    "start": "npm run build && node dist/functions/src/local/server.js",
+    "start:local": "node dist/functions/src/local/server.js",
+    "dev": "npm run build && node dist/functions/src/local/server.js",
+    "setup:local": "node -e \"const fs=require('fs'); if(!fs.existsSync('local.settings.json')){fs.copyFileSync('local.settings.sample.json','local.settings.json'); console.log('Created local.settings.json');} else {console.log('local.settings.json already exists');}\""
   },
   "keywords": [],
   "author": "",

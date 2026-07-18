@@ -1,32 +1,32 @@
-import { app, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
-import { getRecommendationsResponseLive } from "../../../shared/scoring";
-import { enrichRecommendationsResponse } from "../services/explanations";
-import { jsonResponse, readSpecies } from "../services/http";
-import { readQueryLimit } from "../services/query";
-import { recordTelemetry, telemetryInputFromRecommendations } from "../services/telemetry";
+import { app, type HttpRequest, type HttpResponseInit, type InvocationContext } from "@azure/functions";
+import { handleRecommendations, optionsResult } from "../services/api";
+
+function toAzureResponse(result: {
+  status: number;
+  body: unknown;
+  headers: Record<string, string>;
+}): HttpResponseInit {
+  return {
+    status: result.status,
+    jsonBody: result.body === null ? undefined : result.body,
+    headers: result.headers,
+  };
+}
 
 export async function recommendationsHandler(
   request: HttpRequest,
   _context: InvocationContext,
 ): Promise<HttpResponseInit> {
-  const query = {
-    area: request.query.get("area") ?? undefined,
-    species: readSpecies(request),
-    limit: readQueryLimit(request),
-  };
-  const response = await enrichRecommendationsResponse(await getRecommendationsResponseLive(query));
-  const telemetry = await recordTelemetry(telemetryInputFromRecommendations("recommendations", response, query));
+  if (request.method === "OPTIONS") {
+    return toAzureResponse(optionsResult());
+  }
 
-  return jsonResponse(response, {
-    "x-telemetry-id": telemetry.requestId,
-    "x-telemetry-storage": telemetry.storage,
-  });
+  return toAzureResponse(await handleRecommendations(request.query));
 }
 
 app.http("recommendations", {
-  methods: ["GET"],
+  methods: ["GET", "OPTIONS"],
   authLevel: "anonymous",
   route: "recommendations",
   handler: recommendationsHandler,
 });
-
