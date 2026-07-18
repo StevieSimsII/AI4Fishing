@@ -51,7 +51,8 @@ Use this in order.
 - [x] Confirm all four API endpoints still return the expected response shape
 - [x] Add a local Node API server so the dashboard can run without Azure Functions Core Tools
 - [x] Harden local settings so placeholder Postgres/CORS values do not break requests
-- [ ] Confirm the dashboard still renders with live conditions in a browser
+- [x] Confirm local API + web start cleanly and dashboard request returns recommendations
+- [x] Confirm NOAA Shell Beach water levels feed live tide movement without a Windy key
 - [x] Confirm builds and lint pass after ingestion is wired in
 
 ## Phase 2: Explanations and telemetry
