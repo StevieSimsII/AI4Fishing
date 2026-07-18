@@ -79,7 +79,15 @@ export async function recordTelemetry(result: TelemetryInput): Promise<Telemetry
     return logToConsole(result, requestId);
   }
 
-  const client = await pool.connect();
+  let client;
+  try {
+    client = await pool.connect();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown postgres connect error.";
+    console.warn(`[telemetry] Postgres unavailable, using console logs: ${message}`);
+    return logToConsole(result, requestId);
+  }
+
   try {
     await client.query("BEGIN");
     await client.query(
@@ -155,8 +163,15 @@ export async function recordTelemetry(result: TelemetryInput): Promise<Telemetry
       storage: "postgres",
     };
   } catch (error) {
-    await client.query("ROLLBACK");
-    throw error;
+    try {
+      await client.query("ROLLBACK");
+    } catch {
+      // Ignore rollback failures when the connection is already unhealthy.
+    }
+
+    const message = error instanceof Error ? error.message : "Unknown postgres write error.";
+    console.warn(`[telemetry] Postgres write failed, using console logs: ${message}`);
+    return logToConsole(result, requestId);
   } finally {
     client.release();
   }

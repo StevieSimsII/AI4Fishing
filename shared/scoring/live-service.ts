@@ -2,7 +2,6 @@ import { CURRENT_ENVIRONMENT, HOURLY_FORECAST } from "../../data/seed/environmen
 import { getPilotAreaConfig } from "../../data/seed/pilot-areas";
 import type {
   DashboardSnapshot,
-  DataSourceReference,
   EnvironmentalSnapshot,
   ForecastWindowSeed,
   RecommendationQuery,
@@ -369,9 +368,27 @@ function toForecastWindow(
   };
 }
 
+function isConfiguredSecret(value?: string | null): boolean {
+  const normalized = (value ?? "").trim();
+  if (!normalized) {
+    return false;
+  }
+
+  const lowered = normalized.toLowerCase();
+  return ![
+    "replace_with",
+    "replace-with",
+    "your_",
+    "your-",
+    "changeme",
+    "todo",
+    "xxx",
+  ].some((marker) => lowered.includes(marker));
+}
+
 async function fetchWindyWeather(area: ReturnType<typeof getPilotAreaConfig>): Promise<WeatherHour[]> {
-  const apiKey = process.env.WINDY_API_KEY;
-  if (!apiKey) {
+  const apiKey = process.env.WINDY_API_KEY?.trim();
+  if (!isConfiguredSecret(apiKey) || !apiKey) {
     throw new Error("WINDY_API_KEY is not configured.");
   }
 
@@ -427,6 +444,45 @@ function buildFallbackEnvironment(reason: string): EnvironmentalSnapshot {
   };
 }
 
+function weatherHoursFromSeed(): WeatherHour[] {
+  const baseTime = new Date();
+  return HOURLY_FORECAST.map((window, index) => {
+    const timestamp = new Date(baseTime.getTime() + index * 60 * 60 * 1000);
+    return {
+      timestamp,
+      windSpeedMph: window.windSpeedMph,
+      windDirection: CURRENT_ENVIRONMENT.windDirection,
+      tempF: CURRENT_ENVIRONMENT.waterTempF,
+      pressureMb: CURRENT_ENVIRONMENT.pressureMb,
+      cloudCoverPercent: CURRENT_ENVIRONMENT.cloudCoverPercent ?? 35,
+    };
+  });
+}
+
+function tidePredictionsFromSeed(): TidePrediction[] {
+  const baseTime = new Date();
+  return HOURLY_FORECAST.map((window, index) => {
+    const stageOffset =
+      window.tideStage === "high" ? 1.4 : window.tideStage === "low" ? 0.2 : 0.8;
+    const movementOffset =
+      window.tideMovement === "incoming" ? index * 0.08 : window.tideMovement === "outgoing" ? -index * 0.08 : 0;
+    return {
+      timestamp: new Date(baseTime.getTime() + index * 60 * 60 * 1000),
+      valueFeet: Number((stageOffset + movementOffset).toFixed(2)),
+    };
+  });
+}
+
+async function settledValue<T>(promise: Promise<T>, label: string): Promise<{ value?: T; error?: string }> {
+  try {
+    return { value: await promise };
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : `Unknown ${label} error.`;
+    console.warn(`[live-service] ${label} unavailable: ${detail}`);
+    return { error: detail };
+  }
+}
+
 function buildLiveEnvironment(
   area: ReturnType<typeof getPilotAreaConfig>,
   currentHour: WeatherHour,
@@ -475,37 +531,76 @@ async function buildLiveEnvironmentalBundle(areaName?: string): Promise<LiveEnvi
     return cached.value;
   }
 
-  try {
-    const [weatherHours, tidePredictions] = await Promise.all([
-      fetchWindyWeather(area),
-      fetchNoaaTides(area),
-    ]);
+  const [weatherResult, tideResult] = await Promise.all([
+    settledValue(fetchWindyWeather(area), "Windy weather"),
+    settledValue(fetchNoaaTides(area), "NOAA tides"),
+  ]);
 
-    if (weatherHours.length === 0 || tidePredictions.length < 3) {
-      throw new Error("Provider responses did not include enough forecast data.");
-    }
+  const weatherHours =
+    weatherResult.value && weatherResult.value.length > 0
+      ? weatherResult.value
+      : weatherHoursFromSeed();
+  const tidePredictions =
+    tideResult.value && tideResult.value.length >= 3
+      ? tideResult.value
+      : tidePredictionsFromSeed();
 
-    const upcomingWeatherHours = weatherHours.slice(0, 6);
-    const currentHour = upcomingWeatherHours[0];
-    const environment = buildLiveEnvironment(area, currentHour, tidePredictions);
-    const windows = upcomingWeatherHours.map((hour, index) =>
-      toForecastWindow(hour, tidePredictions, index),
-    );
-    const bundle = { environment, windows };
+  const liveWeather = Boolean(weatherResult.value && weatherResult.value.length > 0);
+  const liveTides = Boolean(tideResult.value && tideResult.value.length >= 3);
 
-    LIVE_CACHE.set(area.key, {
-      expiresAt: Date.now() + LIVE_CACHE_TTL_MS,
-      value: bundle,
-    });
-
-    return bundle;
-  } catch (error) {
-    const detail = error instanceof Error ? error.message : "Unknown ingestion error.";
+  if (!liveWeather && !liveTides) {
+    const detail = [weatherResult.error, tideResult.error].filter(Boolean).join(" ");
     return {
-      environment: buildFallbackEnvironment(detail),
+      environment: buildFallbackEnvironment(
+        detail || "Live providers unavailable; using seed environmental snapshot.",
+      ),
       windows: HOURLY_FORECAST,
     };
   }
+
+  const upcomingWeatherHours = weatherHours.slice(0, 6);
+  const currentHour = upcomingWeatherHours[0];
+  const environment = buildLiveEnvironment(area, currentHour, tidePredictions);
+  const providerNotes = [
+    liveWeather ? "Windy Point Forecast" : `Weather seed fallback (${weatherResult.error ?? "missing"})`,
+    liveTides ? "NOAA CO-OPS tides" : `Tide seed fallback (${tideResult.error ?? "missing"})`,
+  ];
+
+  environment.dataSources = [
+    ...(liveWeather || liveTides
+      ? area.dataSources.filter((source) => {
+          if (source.type === "weather") {
+            return liveWeather;
+          }
+          if (source.type === "tide") {
+            return liveTides;
+          }
+          return true;
+        })
+      : []),
+    ...(!liveWeather || !liveTides
+      ? [
+          {
+            name: "Partial seed fallback",
+            type: "fallback" as const,
+            url: "local-seed-data",
+            detail: providerNotes.join("; "),
+          },
+        ]
+      : []),
+  ];
+
+  const windows = upcomingWeatherHours.map((hour, index) =>
+    toForecastWindow(hour, tidePredictions, index),
+  );
+  const bundle = { environment, windows };
+
+  LIVE_CACHE.set(area.key, {
+    expiresAt: Date.now() + LIVE_CACHE_TTL_MS,
+    value: bundle,
+  });
+
+  return bundle;
 }
 
 export async function getRecommendationsResponseLive(query: RecommendationQuery = {}) {

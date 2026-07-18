@@ -49,7 +49,9 @@ Use this in order.
 
 ### 5. Verify the live flow
 - [x] Confirm all four API endpoints still return the expected response shape
-- [ ] Confirm the dashboard still renders with live conditions
+- [x] Add a local Node API server so the dashboard can run without Azure Functions Core Tools
+- [x] Harden local settings so placeholder Postgres/CORS values do not break requests
+- [ ] Confirm the dashboard still renders with live conditions in a browser
 - [x] Confirm builds and lint pass after ingestion is wired in
 
 ## Phase 2: Explanations and telemetry
